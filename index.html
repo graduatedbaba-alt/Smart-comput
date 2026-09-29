@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<link rel="manifest" href="manifest.json">
+<title>Smart Calculator</title>
+<style>
+/* ---------- Design tokens ---------- */
+:root{
+  --bg:#0e1116; --panel:#171b22; --key:#1f2530; --key-hi:#2a3240;
+  --text:#eef1f6; --muted:#8a94a6; --accent:#5eead4; --accent-ink:#06211d;
+  --op:#3b4a63; --danger:#ff7a7a;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);overscroll-behavior:none}
+body{display:flex;justify-content:center}
+.app{width:100%;max-width:460px;height:100%;display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top,0) 14px env(safe-area-inset-bottom,0)}
+header{padding:16px 4px 8px;font-size:1.15rem;font-weight:650;letter-spacing:.2px}
+main{flex:1;min-height:0;position:relative}
+.view{position:absolute;inset:0;display:none;flex-direction:column;opacity:0}
+.view.active{display:flex;animation:fade .25s ease forwards}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ---------- Tab bar ---------- */
+nav{display:flex;gap:6px;background:var(--panel);border-radius:20px;padding:6px;margin:8px 0 12px}
+nav button{flex:1;padding:14px 0;border:0;border-radius:15px;background:transparent;color:var(--muted);
+  font:600 1rem var(--font);transition:background .2s,color .2s,transform .1s}
+nav button.active{background:var(--accent);color:var(--accent-ink)}
+nav button:active{transform:scale(.97)}
+
+/* ---------- Calculator ---------- */
+.display{background:var(--panel);border-radius:24px;padding:14px 18px;margin-bottom:12px;
+  min-height:150px;display:flex;flex-direction:column;justify-content:flex-end;text-align:right;position:relative}
+.hist-btn{position:absolute;top:10px;left:10px;border:0;background:var(--key);color:var(--muted);
+  border-radius:12px;padding:8px 12px;font:600 .85rem var(--font)}
+.expr{color:var(--muted);font-size:1.25rem;min-height:1.6em;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+.result{font-size:3.2rem;font-weight:600;line-height:1.15;overflow-x:auto;white-space:nowrap;scrollbar-width:none;
+  font-variant-numeric:tabular-nums}
+.result.err{color:var(--danger);font-size:1.7rem}
+.keys{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:1fr;gap:10px;padding-bottom:6px}
+.k{border:0;border-radius:22px;background:var(--key);color:var(--text);font:500 1.6rem var(--font);
+  transition:transform .09s ease,background .15s,filter .15s;touch-action:manipulation}
+.k:active{transform:scale(.91);background:var(--key-hi)}
+.k.op{background:var(--op);color:var(--accent)}
+.k.fn{background:var(--key-hi);color:var(--text)}
+.k.eq{background:var(--accent);color:var(--accent-ink);font-weight:700}
+.k.eq:active{filter:brightness(.85)}
+.k.clr{color:var(--danger)}
+
+/* History drawer */
+.drawer{position:absolute;inset:0;background:var(--bg);border-radius:24px;z-index:5;padding:10px 2px;
+  display:flex;flex-direction:column;transform:translateY(105%);transition:transform .3s ease}
+.drawer.open{transform:none}
+.drawer-head{display:flex;justify-content:space-between;align-items:center;padding:6px 6px 12px;font-weight:650}
+.drawer-head button{border:0;background:var(--key);color:var(--text);border-radius:12px;padding:10px 14px;font:600 .9rem var(--font)}
+#histList{flex:1;overflow-y:auto;list-style:none}
+#histList li{background:var(--panel);border-radius:16px;padding:12px 16px;margin-bottom:8px;text-align:right;cursor:pointer}
+#histList li small{display:block;color:var(--muted);font-size:.95rem}
+#histList li strong{font-size:1.4rem;font-weight:600}
+.empty{color:var(--muted);text-align:center;margin-top:40px}
+
+/* ---------- Age calculator ---------- */
+#ageView{overflow-y:auto;padding-bottom:10px}
+.card{background:var(--panel);border-radius:24px;padding:18px;margin-bottom:12px}
+.card label{display:block;color:var(--muted);font-size:.95rem;margin-bottom:8px}
+input[type=date]{width:100%;padding:16px;border-radius:16px;border:1px solid var(--key-hi);background:var(--key);
+  color:var(--text);font:500 1.2rem var(--font);color-scheme:dark}
+input[type=date]:focus{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:flex;gap:10px;margin-top:14px}
+.btn{flex:1;padding:16px;border:0;border-radius:16px;font:650 1.05rem var(--font);transition:transform .09s,filter .15s}
+.btn:active{transform:scale(.95)}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:var(--key-hi);color:var(--text)}
+.msg{color:var(--danger);margin-top:12px;min-height:1.2em;font-size:.95rem}
+#out{display:none}
+#out.show{display:block;animation:fade .3s ease}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.trio div{background:var(--key);border-radius:18px;padding:16px 4px;text-align:center}
+.trio b{display:block;font-size:2.2rem;font-weight:650;color:var(--accent)}
+.trio span{color:var(--muted);font-size:.9rem}
+.stat{display:flex;justify-content:space-between;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--key)}
+.stat:last-child{border:0;padding-bottom:0}
+.stat span{color:var(--muted)}
+.stat b{font-size:1.15rem;text-align:right}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-height:640px){.result{font-size:2.4rem}.display{min-height:110px}.k{font-size:1.35rem}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>Smart Calculator</header>
+
+  <nav role="tablist">
+    <button id="tabCalc" class="active" role="tab">Calculator</button>
+    <button id="tabAge" role="tab">Age</button>
+  </nav>
+
+  <main>
+    <!-- ===== Calculator view ===== -->
+    <section id="calcView" class="view active">
+      <div class="display">
+        <button class="hist-btn" id="histOpen">History</button>
+        <div class="expr" id="expr"></div>
+        <div class="result" id="result">0</div>
+      </div>
+      <div class="keys" id="keys">
+        <button class="k fn clr" data-a="ac">AC</button>
+        <button class="k fn" data-a="del">⌫</button>
+        <button class="k fn" data-v="%">%</button>
+        <button class="k op" data-v="÷">÷</button>
+
+        <button class="k fn" data-v="(">(</button>
+        <button class="k fn" data-v=")">)</button>
+        <button class="k" data-v="7">7</button>
+        <button class="k op" data-v="×">×</button>
+
+        <button class="k" data-v="8">8</button>
+        <button class="k" data-v="9">9</button>
+        <button class="k" data-v="4">4</button>
+        <button class="k op" data-v="−">−</button>
+
+        <button class="k" data-v="5">5</button>
+        <button class="k" data-v="6">6</button>
+        <button class="k" data-v="1">1</button>
+        <button class="k op" data-v="+">+</button>
+
+        <button class="k" data-v="2">2</button>
+        <button class="k" data-v="3">3</button>
+        <button class="k" data-v="0">0</button>
+        <button class="k" data-v=".">.</button>
+
+        <button class="k eq" data-a="eq" style="grid-column:1/-1;padding:0">=</button>
+      </div>
+
+      <div class="drawer" id="drawer">
+        <div class="drawer-head"><span>History</span>
+          <div><button id="histClear">Clear</button> <button id="histClose">Close</button></div></div>
+        <ul id="histList"></ul>
+      </div>
+    </section>
+
+    <!-- ===== Age view ===== -->
+    <section id="ageView" class="view">
+      <div class="card">
+        <label for="dob">Date of birth</label>
+        <input type="date" id="dob">
+        <div class="msg" id="ageMsg"></div>
+        <div class="row">
+          <button class="btn ghost" id="ageReset">Reset</button>
+          <button class="btn primary" id="ageGo">Calculate age</button>
+        </div>
+      </div>
+      <div id="out">
+        <div class="card"><div class="trio">
+          <div><b id="oY">0</b><span>Years</span></div>
+          <div><b id="oM">0</b><span>Months</span></div>
+          <div><b id="oD">0</b><span>Days</span></div>
+        </div></div>
+        <div class="card">
+          <div class="stat"><span>Total days lived</span><b id="oTotal"></b></div>
+          <div class="stat"><span>Next birthday</span><b id="oNext"></b></div>
+          <div class="stat"><span>Days remaining</span><b id="oLeft"></b></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+/* ================= Navigation ================= */
+const $ = id => document.getElementById(id);
+function showTab(which){
+  const calc = which === "calc";
+  $("calcView").classList.toggle("active", calc);
+  $("ageView").classList.toggle("active", !calc);
+  $("tabCalc").classList.toggle("active", calc);
+  $("tabAge").classList.toggle("active", !calc);
+}
+$("tabCalc").onclick = () => showTab("calc");
+$("tabAge").onclick  = () => showTab("age");
+
+/* ================= Calculator ================= */
+let expr = "";            // expression shown to the user (uses × ÷ −)
+let justEvaluated = false; // true right after "="
+let history = [];          // [{e, r}]
+const OPS = "+−×÷";
+
+/* Safe recursive-descent parser: no eval().
+   Grammar: expr = term (('+'|'-') term)*
+            term = factor (('*'|'/') factor)*
+            factor = ('-'|'+') factor | primary ('%')*
+            primary = number | '(' expr ')'          */
+function evaluate(src){
+  const s = src.replace(/×/g,"*").replace(/÷/g,"/").replace(/−/g,"-");
+  let i = 0;
+  const peek = () => s[i];
+  function parseExpr(){
+    let v = parseTerm();
+    while (peek()==="+" || peek()==="-"){
+      const op = s[i++]; const r = parseTerm();
+      v = op==="+" ? v + r : v - r;
+    }
+    return v;
+  }
+  function parseTerm(){
+    let v = parseFactor();
+    while (peek()==="*" || peek()==="/"){
+      const op = s[i++]; const r = parseFactor();
+      if (op==="/"){ if (r===0) throw new Error("Cannot divide by zero"); v = v / r; }
+      else v = v * r;
+    }
+    return v;
+  }
+  function parseFactor(){
+    if (peek()==="-"){ i++; return -parseFactor(); }
+    if (peek()==="+"){ i++; return parseFactor(); }
+    let v = parsePrimary();
+    while (peek()==="%"){ i++; v = v / 100; }   // 50% -> 0.5
+    return v;
+  }
+  function parsePrimary(){
+    if (peek()==="("){
+      i++; const v = parseExpr();
+      if (peek()!==")") throw new Error("Missing )");
+      i++; return v;
+    }
+    const m = /^\d*\.?\d+|^\d+\.?/.exec(s.slice(i));
+    if (!m) throw new Error("Invalid expression");
+    i += m[0].length; return parseFloat(m[0]);
+  }
+  if (!s.trim()) return 0;
+  const out = parseExpr();
+  if (i < s.length) throw new Error("Invalid expression");
+  if (!isFinite(out)) throw new Error("Result too large");
+  return out;
+}
+
+/* Format numbers: fix floating-point noise (0.1+0.2) and long values */
+function fmt(n){
+  const r = parseFloat(n.toPrecision(12));
+  if (Math.abs(r) >= 1e15 || (r !== 0 && Math.abs(r) < 1e-9)) return r.toExponential(6).replace(/\.?0+e/,"e");
+  return r.toLocaleString("en-US",{maximumFractionDigits:10});
+}
+
+function render(preview){
+  $("expr").textContent = expr;
+  const res = $("result");
+  res.classList.remove("err");
+  res.textContent = preview ?? (expr || "0");
+  $("expr").scrollLeft = 9999;
+}
+
+/* Live preview of the result while typing */
+function livePreview(){
+  if (!expr) return render("0");
+  try{
+    const last = expr.slice(-1);
+    if (OPS.includes(last) || last==="(") return render(expr);
+    let e = expr;
+    const open = (e.match(/\(/g)||[]).length - (e.match(/\)/g)||[]).length;
+    e += ")".repeat(Math.max(0,open));
+    render(fmt(evaluate(e)));
+  }catch(_){ render(expr); }
+}
+
+function showError(msg){
+  const res = $("result");
+  res.textContent = msg; res.classList.add("err");
+  expr = ""; justEvaluated = false;
+}
+
+function press(v){
+  const last = expr.slice(-1);
+  if (justEvaluated){
+    // Start fresh after a number, continue after an operator
+    if (!OPS.includes(v) && v!=="%") expr = "";
+    justEvaluated = false;
+  }
+  if (/\d/.test(v)){
+    if (last===")" || last==="%") expr += "×";   // implicit multiplication
+    // Avoid leading zeros like "007"
+    const m = /(\d*\.?\d*)$/.exec(expr)[1];
+    if (m==="0" && v==="0") return;
+    if (m==="0" && v!=="0") expr = expr.slice(0,-1);
+    expr += v;
+  } else if (v==="."){
+    const m = /(\d*\.?\d*)$/.exec(expr)[1];
+    if (m.includes(".")) return;                 // only one decimal per number
+    if (m==="" ) { if (last===")"||last==="%") expr += "×"; expr += "0"; }
+    expr += ".";
+  } else if (OPS.includes(v)){
+    if (!expr){ if (v==="−") expr = "−"; }       // allow leading minus
+    else if (last==="(") { if (v==="−") expr += v; }
+    else if (OPS.includes(last)) expr = expr.slice(0,-1) + v; // replace operator
+    else if (last==="." ) return;
+    else expr += v;
+  } else if (v==="%"){
+    if (/[\d)%]/.test(last)) expr += "%";
+  } else if (v==="("){
+    if (/[\d)%.]/.test(last)) expr += "×";
+    expr += "(";
+  } else if (v===")"){
+    const open = (expr.match(/\(/g)||[]).length - (expr.match(/\)/g)||[]).length;
+    if (open>0 && /[\d)%]/.test(last)) expr += ")";
+  }
+  livePreview();
+}
+
+function del(){ if (justEvaluated){ justEvaluated=false; } expr = expr.slice(0,-1); livePreview(); }
+function allClear(){ expr = ""; justEvaluated = false; render("0"); }
+
+function equals(){
+  if (!expr) return;
+  // Auto-close open brackets; drop dangling operator
+  let e = expr;
+  while (OPS.includes(e.slice(-1))) e = e.slice(0,-1);
+  const open = (e.match(/\(/g)||[]).length - (e.match(/\)/g)||[]).length;
+  e += ")".repeat(Math.max(0,open));
+  try{
+    const val = evaluate(e);
+    const text = fmt(val);
+    history.unshift({e, r:text});
+    if (history.length > 50) history.pop();
+    drawHistory();
+    $("expr").textContent = e + " =";
+    $("result").classList.remove("err");
+    $("result").textContent = text;
+    // keep a plain (comma-free) number so it can be reused
+    expr = String(parseFloat(val.toPrecision(12))).replace("-","−");
+    if (/e/i.test(expr)) expr = text.replace(/,/g,"");
+    justEvaluated = true;
+  }catch(err){
+    $("expr").textContent = e;
+    showError(err.message);
+  }
+}
+
+/* Button handling (event delegation) */
+$("keys").addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  if (navigator.vibrate) navigator.vibrate(8);
+  const a = b.dataset.a;
+  if (a==="ac") allClear(); else if (a==="del") del(); else if (a==="eq") equals();
+  else press(b.dataset.v);
+});
+/* Keyboard support (bonus, for desktop testing) */
+document.addEventListener("keydown", ev => {
+  if ($("calcView").classList.contains("active")===false) return;
+  const k = ev.key;
+  if (/^[0-9.%()]$/.test(k)) press(k);
+  else if (k==="+") press("+"); else if (k==="-") press("−");
+  else if (k==="*") press("×"); else if (k==="/"){ ev.preventDefault(); press("÷"); }
+  else if (k==="Enter"||k==="=") equals();
+  else if (k==="Backspace") del(); else if (k==="Escape") allClear();
+});
+
+/* History drawer */
+function drawHistory(){
+  const ul = $("histList"); ul.innerHTML = "";
+  if (!history.length){
+    const li = document.createElement("div"); li.className="empty"; li.textContent="No calculations yet";
+    ul.appendChild(li); return;
+  }
+  history.forEach(h => {
+    const li = document.createElement("li");
+    const s = document.createElement("small"); s.textContent = h.e + " =";
+    const st = document.createElement("strong"); st.textContent = h.r;
+    li.append(s, st);
+    li.onclick = () => {           // tap an entry to reuse its result
+      expr = h.r.replace(/,/g,"").replace("-","−"); justEvaluated = false;
+      $("drawer").classList.remove("open"); livePreview();
+    };
+    ul.appendChild(li);
+  });
+}
+$("histOpen").onclick  = () => $("drawer").classList.add("open");
+$("histClose").onclick = () => $("drawer").classList.remove("open");
+$("histClear").onclick = () => { history = []; drawHistory(); };
+drawHistory();
+
+/* ================= Age calculator ================= */
+const dob = $("dob");
+
+/* Local-date string YYYY-MM-DD (avoids UTC off-by-one bugs) */
+function toISO(d){
+  const p = n => String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+}
+function today(){ const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+dob.max = toISO(today());                       // block future dates in the picker
+
+function daysInMonth(y, m){ return new Date(y, m+1, 0).getDate(); }
+
+function calcAge(){
+  const msg = $("ageMsg"); msg.textContent = "";
+  if (!dob.value){ msg.textContent = "Choose your date of birth."; return; }
+  const [by,bm,bd] = dob.value.split("-").map(Number);
+  const birth = new Date(by, bm-1, bd);
+  const now = today();
+  if (birth > now){ msg.textContent = "Date of birth can't be in the future."; return; }
+
+  // Years / months / days with borrowing
+  let y = now.getFullYear() - by;
+  let m = now.getMonth() - (bm-1);
+  let d = now.getDate() - bd;
+  if (d < 0){                                   // borrow days from previous month
+    m--;
+    const pm = now.getMonth()===0 ? 11 : now.getMonth()-1;
+    const py = now.getMonth()===0 ? now.getFullYear()-1 : now.getFullYear();
+    d += daysInMonth(py, pm);
+  }
+  if (m < 0){ y--; m += 12; }
+
+  // Total days (use UTC to ignore daylight-saving shifts)
+  const utc = dt => Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  const total = Math.round((utc(now) - utc(birth)) / 864e5);
+
+  // Next birthday (Feb 29 birthdays fall on Mar 1 in non-leap years)
+  function bdayIn(year){
+    if (bm===2 && bd===29 && daysInMonth(year,1)===28) return new Date(year, 2, 1);
+    return new Date(year, bm-1, bd);
+  }
+  let next = bdayIn(now.getFullYear());
+  if (next < now) next = bdayIn(now.getFullYear()+1);
+  const left = Math.round((utc(next) - utc(now)) / 864e5);
+
+  $("oY").textContent = y; $("oM").textContent = m; $("oD").textContent = d;
+  $("oTotal").textContent = total.toLocaleString("en-US");
+  $("oNext").textContent = next.toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  $("oLeft").textContent = left===0 ? "Today! 🎉" : left.toLocaleString("en-US") + (left===1 ? " day" : " days");
+  const out = $("out"); out.classList.remove("show"); void out.offsetWidth; out.classList.add("show");
+}
+function resetAge(){
+  dob.value = ""; $("ageMsg").textContent = ""; $("out").classList.remove("show");
+}
+$("ageGo").onclick = calcAge;
+$("ageReset").onclick = resetAge;
+dob.addEventListener("change", () => { $("ageMsg").textContent = ""; });
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
+</script>
+</body>
+</html>
