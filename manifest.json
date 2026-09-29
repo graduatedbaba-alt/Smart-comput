@@ -1,0 +1,39 @@
+{
+  "background_color": "#0e1116",
+  "description": "Smart Calculator is a simple calculator and age calculator app for quick calculations and accurate age information. A fast, dependable calculator for everyday arithmetic and exact age calculations.",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "Smart Calculator",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "Smart Calcu",
+  "start_url": "/",
+  "theme_color": "#0e1116",
+  "icons": [
+    {
+      "src": "https://smart-calculator--graduatedbaba.replit.app/favicon.svg",
+      "type": "image/svg+xml",
+      "isSquare": false,
+      "isPng": false,
+      "isWebp": false,
+      "isJpg": false,
+      "width": 0,
+      "is512x512": false,
+      "is256x256": false,
+      "is192x192": false
+    },
+    {
+      "src": "https://smart-calculator--graduatedbaba.replit.app/favicon.ico",
+      "type": "image/x-icon",
+      "isSquare": false,
+      "isPng": false,
+      "isWebp": false,
+      "isJpg": false,
+      "width": 0,
+      "is512x512": false,
+      "is256x256": false,
+      "is192x192": false
+    }
+  ],
+  "id": "smart-calculator"
+}
